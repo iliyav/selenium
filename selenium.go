@@ -367,6 +367,9 @@ type WebDriver interface {
 
 	//Wait works like WaitWithTimeoutAndInterval, but using the default timeout and polling interval.
 	Wait(condition Condition) error
+
+	// SetFileDetector changes file detection to enable files upload on remote webdriver
+	SetFileDetector(fd FileDetectorFunc)
 }
 
 // WebElement defines method supported by web elements.

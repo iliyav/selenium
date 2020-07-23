@@ -19,6 +19,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/tebeka/selenium/firefox"
+	"github.com/tebeka/selenium/internal/zip"
 	"github.com/tebeka/selenium/log"
 )
 
@@ -53,6 +54,7 @@ type remoteWD struct {
 	w3cCompatible  bool
 	browser        string
 	browserVersion semver.Version
+	fileDetector   FileDetectorFunc
 }
 
 // HTTPClient is the default client to use to communicate with the WebDriver
@@ -226,6 +228,7 @@ func NewRemote(capabilities Capabilities, urlPrefix string) (WebDriver, error) {
 	wd := &remoteWD{
 		urlPrefix:    urlPrefix,
 		capabilities: capabilities,
+		fileDetector: GetLocalFileDummy,
 	}
 	if b := capabilities["browserName"]; b != nil {
 		wd.browser = b.(string)
@@ -1226,6 +1229,10 @@ func (wd *remoteWD) Wait(condition Condition) error {
 	return wd.WaitWithTimeoutAndInterval(condition, DefaultWaitTimeout, DefaultWaitInterval)
 }
 
+func (wd *remoteWD) SetFileDetector(fd FileDetectorFunc) {
+	wd.fileDetector = fd
+}
+
 func (wd *remoteWD) Log(typ log.Type) ([]log.Message, error) {
 	url := wd.requestURL("/session/%s/log", wd.id)
 	params := map[string]log.Type{
@@ -1281,8 +1288,53 @@ func (elem *remoteWE) Click() error {
 }
 
 func (elem *remoteWE) SendKeys(keys string) error {
+	if elem.parent.fileDetector(keys) {
+		filePath, err := elem.uploadFile(keys)
+		if err != nil {
+			return err
+		}
+		if filePath == "" {
+			return fmt.Errorf("received empty path after file upload")
+		}
+
+		keys = filePath
+	}
+
 	urlTemplate := fmt.Sprintf("/session/%%s/element/%s/value", elem.id)
 	return elem.parent.voidCommand(urlTemplate, elem.parent.processKeyString(keys))
+}
+
+func (elem *remoteWE) uploadFile(path string) (string, error) {
+	buf, err := zip.New(path)
+	if err != nil {
+		return "", err
+	}
+
+	urlTemplate := "/session/%s/file"
+	params := map[string]interface{}{
+		"file": buf.String(),
+	}
+
+	data, err := json.Marshal(params)
+	if err != nil {
+		return "", err
+	}
+
+	msg, err := elem.parent.execute("POST", elem.parent.requestURL(urlTemplate, elem.parent.id), data)
+	if err != nil {
+		return "", err
+	}
+
+	result := struct {
+		Value string `json:"value"`
+	}{}
+
+	err = json.Unmarshal(msg, &result)
+	if err != nil {
+		return "", err
+	}
+
+	return result.Value, nil
 }
 
 func (wd *remoteWD) processKeyString(keys string) interface{} {
