@@ -1,8 +1,8 @@
 # The most complete, best-tested WebDriver client for Go
 
-[![GoDoc](https://godoc.org/github.com/tebeka/selenium?status.svg)](https://godoc.org/github.com/tebeka/selenium)
-[![Travis](https://travis-ci.org/tebeka/selenium.svg?branch=master)](https://travis-ci.org/tebeka/selenium)
-[![Go Report Card](https://goreportcard.com/badge/github.com/tebeka/selenium)](https://goreportcard.com/report/github.com/tebeka/selenium)
+[![GoDoc](https://godoc.org/github.com/iliyav/selenium?status.svg)](https://godoc.org/github.com/iliyav/selenium)
+[![Travis](https://travis-ci.org/iliyav/selenium.svg?branch=master)](https://travis-ci.org/iliyav/selenium)
+[![Go Report Card](https://goreportcard.com/badge/github.com/iliyav/selenium)](https://goreportcard.com/report/github.com/iliyav/selenium)
 
 ## About
 
@@ -25,7 +25,7 @@ Chrome and [ChromeDriver][chromedriver],
 
 Run
 
-    go get -t -d github.com/tebeka/selenium
+    go get -t -d github.com/iliyav/selenium
 
 to fetch the package.
 
@@ -46,10 +46,10 @@ Re-run this periodically to get up-to-date versions of these binaries.
 
 ## Documentation
 
-The API documentation is at https://godoc.org/github.com/tebeka/selenium. See
-[the example](https://github.com/tebeka/selenium/blob/master/example_test.go)
+The API documentation is at https://godoc.org/github.com/iliyav/selenium. See
+[the example](https://github.com/iliyav/selenium/blob/master/example_test.go)
 and
-[the unit tests](https://github.com/tebeka/selenium/blob/master/remote_test.go)
+[the unit tests](https://github.com/iliyav/selenium/blob/master/remote_test.go)
 for better usage information.
 
 ## Known Issues
@@ -62,7 +62,7 @@ intervention.
 Please feel free to [file an issue][issue] if this client doesn't work as
 expected.
 
-[issue]: https://github.com/tebeka/selenium/issues/new
+[issue]: https://github.com/iliyav/selenium/issues/new
 
 Below are known issues that affect the usage of this API. There are likely
 others filed on the respective issue trackers.
@@ -118,7 +118,7 @@ Patches are encouraged through GitHub pull requests. Please ensure that:
 
 See [the issue tracker][issues] for features that need implementing.
 
-[issues]: https://github.com/tebeka/selenium/issues
+[issues]: https://github.com/iliyav/selenium/issues
 
 ### Testing Locally
 
@@ -200,4 +200,4 @@ Test results can be viewed through the
 
 This project is licensed under the [MIT][mit] license.
 
-[mit]: https://raw.githubusercontent.com/tebeka/selenium/master/LICENSE
+[mit]: https://raw.githubusercontent.com/iliyav/selenium/master/LICENSE
