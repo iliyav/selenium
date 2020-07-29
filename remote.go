@@ -4,22 +4,25 @@
 package selenium
 
 import (
+	"archive/zip"
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 	"time"
 
 	"github.com/blang/semver"
 	"github.com/iliyav/selenium/firefox"
-	"github.com/iliyav/selenium/internal/zip"
 	"github.com/iliyav/selenium/log"
 )
 
@@ -1305,14 +1308,14 @@ func (elem *remoteWE) SendKeys(keys string) error {
 }
 
 func (elem *remoteWE) uploadFile(path string) (string, error) {
-	buf, err := zip.New(path)
+	zipStr, err := generateEncodedZip(path)
 	if err != nil {
 		return "", err
 	}
 
 	urlTemplate := "/session/%s/file"
 	params := map[string]interface{}{
-		"file": buf.String(),
+		"file": zipStr,
 	}
 
 	data, err := json.Marshal(params)
@@ -1335,6 +1338,53 @@ func (elem *remoteWE) uploadFile(path string) (string, error) {
 	}
 
 	return result.Value, nil
+}
+
+func generateEncodedZip(filePath string) (string, error) {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	zipFI, err := zip.FileInfoHeader(fi)
+	if err != nil {
+		return "", err
+	}
+
+	// Strip the prefix from the filename (and the trailing directory
+	// separator) so that the files are at the root of the zip file.
+	zipFI.Name = filePath[strings.LastIndex(filePath, "/")+1:]
+
+	fmt.Printf("ZipName: %s \n", zipFI.Name)
+
+	// Without this, the Java zip reader throws a java.util.zip.ZipException:
+	// "only DEFLATED entries can have EXT descriptor".
+	zipFI.Method = zip.Deflate
+
+	w, err := zw.CreateHeader(zipFI)
+	if err != nil {
+		return "", err
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(w, bufio.NewReader(f))
+	if err != nil {
+		return "", err
+	}
+
+	if err := zw.Close(); err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 func (wd *remoteWD) processKeyString(keys string) interface{} {
