@@ -3,9 +3,9 @@ package selenium
 import (
 	"time"
 
-	"github.com/tebeka/selenium/chrome"
-	"github.com/tebeka/selenium/firefox"
-	"github.com/tebeka/selenium/log"
+	"github.com/iliyav/selenium/chrome"
+	"github.com/iliyav/selenium/firefox"
+	"github.com/iliyav/selenium/log"
 )
 
 // TODO(minusnine): make an enum type called FindMethod.
@@ -367,6 +367,9 @@ type WebDriver interface {
 
 	//Wait works like WaitWithTimeoutAndInterval, but using the default timeout and polling interval.
 	Wait(condition Condition) error
+
+	// SetFileDetector changes file detection to enable files upload on remote webdriver
+	SetFileDetector(fd FileDetectorFunc)
 }
 
 // WebElement defines method supported by web elements.

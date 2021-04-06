@@ -4,22 +4,26 @@
 package selenium
 
 import (
+	"archive/zip"
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/tebeka/selenium/firefox"
-	"github.com/tebeka/selenium/log"
+	"github.com/iliyav/selenium/firefox"
+	"github.com/iliyav/selenium/log"
 )
 
 // Errors returned by Selenium server.
@@ -53,6 +57,7 @@ type remoteWD struct {
 	w3cCompatible  bool
 	browser        string
 	browserVersion semver.Version
+	fileDetector   FileDetectorFunc
 }
 
 // HTTPClient is the default client to use to communicate with the WebDriver
@@ -226,6 +231,7 @@ func NewRemote(capabilities Capabilities, urlPrefix string) (WebDriver, error) {
 	wd := &remoteWD{
 		urlPrefix:    urlPrefix,
 		capabilities: capabilities,
+		fileDetector: GetLocalFileDummy,
 	}
 	if b := capabilities["browserName"]; b != nil {
 		wd.browser = b.(string)
@@ -618,6 +624,10 @@ func (wd *remoteWD) CurrentURL() (string, error) {
 	reply := new(struct{ Value *string })
 	if err := json.Unmarshal(response, reply); err != nil {
 		return "", err
+	}
+
+	if reply.Value == nil {
+		return "", fmt.Errorf("got invalid response: %s", string(response))
 	}
 
 	return *reply.Value, nil
@@ -1226,6 +1236,10 @@ func (wd *remoteWD) Wait(condition Condition) error {
 	return wd.WaitWithTimeoutAndInterval(condition, DefaultWaitTimeout, DefaultWaitInterval)
 }
 
+func (wd *remoteWD) SetFileDetector(fd FileDetectorFunc) {
+	wd.fileDetector = fd
+}
+
 func (wd *remoteWD) Log(typ log.Type) ([]log.Message, error) {
 	url := wd.requestURL("/session/%s/log", wd.id)
 	params := map[string]log.Type{
@@ -1281,8 +1295,100 @@ func (elem *remoteWE) Click() error {
 }
 
 func (elem *remoteWE) SendKeys(keys string) error {
+	if elem.parent.fileDetector(keys) {
+		filePath, err := elem.uploadFile(keys)
+		if err != nil {
+			return err
+		}
+		if filePath == "" {
+			return fmt.Errorf("received empty path after file upload")
+		}
+
+		keys = filePath
+	}
+
 	urlTemplate := fmt.Sprintf("/session/%%s/element/%s/value", elem.id)
 	return elem.parent.voidCommand(urlTemplate, elem.parent.processKeyString(keys))
+}
+
+func (elem *remoteWE) uploadFile(path string) (string, error) {
+	zipStr, err := generateEncodedZip(path)
+	if err != nil {
+		return "", err
+	}
+
+	urlTemplate := "/session/%s/file"
+	params := map[string]interface{}{
+		"file": zipStr,
+	}
+
+	data, err := json.Marshal(params)
+	if err != nil {
+		return "", err
+	}
+
+	msg, err := elem.parent.execute("POST", elem.parent.requestURL(urlTemplate, elem.parent.id), data)
+	if err != nil {
+		return "", err
+	}
+
+	result := struct {
+		Value string `json:"value"`
+	}{}
+
+	err = json.Unmarshal(msg, &result)
+	if err != nil {
+		return "", err
+	}
+
+	return result.Value, nil
+}
+
+func generateEncodedZip(filePath string) (string, error) {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	zipFI, err := zip.FileInfoHeader(fi)
+	if err != nil {
+		return "", err
+	}
+
+	// Strip the prefix from the filename (and the trailing directory
+	// separator) so that the files are at the root of the zip file.
+	zipFI.Name = filePath[strings.LastIndex(filePath, "/")+1:]
+
+	fmt.Printf("ZipName: %s \n", zipFI.Name)
+
+	// Without this, the Java zip reader throws a java.util.zip.ZipException:
+	// "only DEFLATED entries can have EXT descriptor".
+	zipFI.Method = zip.Deflate
+
+	w, err := zw.CreateHeader(zipFI)
+	if err != nil {
+		return "", err
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(w, bufio.NewReader(f))
+	if err != nil {
+		return "", err
+	}
+
+	if err := zw.Close(); err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 func (wd *remoteWD) processKeyString(keys string) interface{} {
