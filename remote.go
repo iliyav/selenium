@@ -626,6 +626,10 @@ func (wd *remoteWD) CurrentURL() (string, error) {
 		return "", err
 	}
 
+	if reply.Value == nil {
+		return "", fmt.Errorf("got invalid response: %s", string(response))
+	}
+
 	return *reply.Value, nil
 }
 
